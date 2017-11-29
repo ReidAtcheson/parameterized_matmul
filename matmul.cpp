@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cassert>
+#include <mpi.h>
 #define CACHE_ALIGNMENT 64
 
 using namespace std;
@@ -12,6 +13,7 @@ void matmul(const float* __restrict__ A,const float* __restrict__ B,float* __res
 
 
 int main(int argc, char** argv){
+  MPI_Init(&argc,&argv);
   if(argc<=1){cout << "Supply matrix dimensions" << endl; return 1;}
   int m=stoi(string(argv[1]),nullptr,10);
 
@@ -35,7 +37,15 @@ int main(int argc, char** argv){
   auto start = std::chrono::steady_clock::now();
   matmul(A,B,C,m);
   auto finish = std::chrono::steady_clock::now();
-  std::cout<<std::chrono::duration_cast<std::chrono::duration<double> >(finish-start).count() << "\n";
+  MPI_Barrier(MPI_COMM_WORLD);
+  double elapsed=std::chrono::duration_cast<std::chrono::duration<double> >(finish-start).count();
+  double redelapsed=0;
+  MPI_Reduce(&elapsed,&redelapsed,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if(rank==0)
+    std::cout<<redelapsed<<"\n";
 
   for(int i=0;i<m*m;i++)assert(C[i]==1.0*m);
 
@@ -44,6 +54,8 @@ int main(int argc, char** argv){
   free(A);
   free(B);
   free(C);
+
+  MPI_Finalize();
 
 }
 
